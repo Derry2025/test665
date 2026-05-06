@@ -1,36 +1,24 @@
 FROM alpine:latest
 
-# 设置版本变量，方便以后维护
-# sing-box 版本: https://github.com/SagerNet/sing-box/releases
-# cloudflared 版本: https://github.com/cloudflare/cloudflared/releases
-ARG SING_BOX_VERSION=1.10.1
-ARG CLOUDFLARED_VERSION=latest
+# 安装必要工具：sing-box, cloudflared, curl, jq
+RUN apk add --no-cache curl wget ca-certificates bash
 
-# 安装必要的下载工具和基础库
-RUN apk add --no-cache ca-certificates bash wget tar
+# 下载并安装 sing-box
+RUN wget -O /tmp/sing-box.tar.gz https://github.com/SagerNet/sing-box/releases/download/v1.8.11/sing-box-1.8.11-linux-amd64.tar.gz && \
+    tar -zxvf /tmp/sing-box.tar.gz -C /tmp && \
+    cp /tmp/sing-box-*/sing-box /usr/local/bin/ && \
+    rm -rf /tmp/*
 
-WORKDIR /app
+# 下载并安装 cloudflared (Argo Tunnel)
+RUN wget https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -O /usr/local/bin/cloudflared && \
+    chmod +x /usr/local/bin/cloudflared
 
-# 1. 下载并安装 sing-box (对应你的 web-app)
-# 根据 Alpine 架构下载对应的 amd64 版本
-RUN wget https://github.com/SagerNet/sing-box/releases/download/v${SING_BOX_VERSION}/sing-box-${SING_BOX_VERSION}-linux-amd64.tar.gz && \
-    tar -zxvf sing-box-${SING_BOX_VERSION}-linux-amd64.tar.gz && \
-    mv sing-box-${SING_BOX_VERSION}-linux-amd64/sing-box /usr/local/bin/sing-box && \
-    rm -rf sing-box-${SING_BOX_VERSION}-linux-amd64*
+# 复制配置文件和启动脚本
+COPY config.json /etc/sing-box/config.json
+COPY start.sh /start.sh
+RUN chmod +x /start.sh
 
-# 2. 下载并安装 cloudflared (对应你的 sys-service)
-RUN wget -O /usr/local/bin/cloudflared https://github.com/cloudflare/cloudflared/releases/${CLOUDFLARED_VERSION}/download/cloudflared-linux-amd64
-
-# 3. 复制你仓库里现有的配置文件 (config.json, start.sh 等)
-COPY . .
-
-# 4. 赋予执行权限
-RUN chmod +x /usr/local/bin/sing-box && \
-    chmod +x /usr/local/bin/cloudflared && \
-    chmod +x start.sh
-
-# 声明端口
+# Railway 默认端口
 EXPOSE 8080
 
-# 启动脚本
-CMD ["./start.sh"]
+ENTRYPOINT ["/bin/bash", "/start.sh"]
